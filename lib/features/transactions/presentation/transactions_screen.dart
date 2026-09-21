@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/models/finance_models.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/repositories/finance_repository.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/widgets/icon_for_name.dart';
 
@@ -88,14 +90,25 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                     final isIncome = transaction.type == 'income';
                     return Dismissible(
                       key: ValueKey(transaction.id),
-                      direction: DismissDirection.endToStart,
+                      direction: DismissDirection.horizontal,
                       background: Container(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.only(left: 24),
+                        child: const Icon(Icons.edit_outlined),
+                      ),
+                      secondaryBackground: Container(
                         color: Theme.of(context).colorScheme.errorContainer,
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: 24),
                         child: const Icon(Icons.delete_outline),
                       ),
-                      confirmDismiss: (_) => _confirmDelete(transaction),
+                      confirmDismiss: (direction) {
+                        if (direction == DismissDirection.startToEnd) {
+                          return _editTransaction(transaction);
+                        }
+                        return _confirmDelete(transaction);
+                      },
                       child: Card(
                         margin: const EdgeInsets.only(bottom: 10),
                         child: ListTile(
@@ -162,10 +175,113 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         false;
     if (confirmed) {
       await ref.read(repositoryProvider).deleteTransaction(transaction.id);
-      ref.invalidate(accountsProvider);
-      ref.invalidate(transactionsProvider);
+      refreshFinance(ref);
     }
     return confirmed;
+  }
+
+  Future<bool> _editTransaction(TransactionsTableData transaction) async {
+    final categories = await ref.read(categoriesProvider.future);
+    final categoryType = transaction.type == TransactionType.income.value
+        ? 'income'
+        : 'expense';
+    final availableCategories = categories
+        .where((category) => category.type == categoryType)
+        .toList();
+    if (availableCategories.isEmpty) return false;
+    final categoryIds = availableCategories.map((category) => category.id);
+    final result = await showDialog<_EditTransactionValues>(
+      context: context,
+      builder: (dialogContext) {
+        final amountController = TextEditingController(
+          text: formatInputAmount(transaction.amount),
+        );
+        var selectedCategoryId = categoryIds.contains(transaction.categoryId)
+            ? transaction.categoryId
+            : availableCategories.first.id;
+        String? errorText;
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Edit transaction'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: amountController,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Amount',
+                    prefixText: 'Rs. ',
+                    errorText: errorText,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedCategoryId,
+                  decoration: const InputDecoration(labelText: 'Category'),
+                  items: availableCategories
+                      .map(
+                        (category) => DropdownMenuItem(
+                          value: category.id,
+                          child: Text(category.name),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setDialogState(
+                    () => selectedCategoryId = value ?? selectedCategoryId,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final amount = parseMinorUnits(amountController.text);
+                  if (amount <= 0) {
+                    setDialogState(
+                      () => errorText = 'Enter an amount greater than zero.',
+                    );
+                    return;
+                  }
+                  Navigator.pop(
+                    dialogContext,
+                    _EditTransactionValues(
+                      categoryId: selectedCategoryId,
+                      amount: amount,
+                    ),
+                  );
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (result == null) return false;
+    try {
+      await ref
+          .read(repositoryProvider)
+          .updateTransaction(
+            id: transaction.id,
+            categoryId: result.categoryId,
+            amount: result.amount,
+          );
+      refreshFinance(ref);
+    } on FinanceFailure catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+    return false;
   }
 
   Future<void> _showSearch(BuildContext context) async {
@@ -192,6 +308,15 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     );
     controller.dispose();
   }
+}
+
+class _EditTransactionValues {
+  const _EditTransactionValues({
+    required this.categoryId,
+    required this.amount,
+  });
+  final String categoryId;
+  final int amount;
 }
 
 class _EmptyTransactions extends StatelessWidget {

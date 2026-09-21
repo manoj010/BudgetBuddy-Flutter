@@ -7,7 +7,12 @@ import '../../../core/repositories/finance_repository.dart';
 import '../../../core/utils/money.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
-  const AddTransactionScreen({super.key});
+  const AddTransactionScreen({
+    super.key,
+    this.initialType = TransactionType.expense,
+  });
+  final TransactionType initialType;
+
   @override
   ConsumerState<AddTransactionScreen> createState() =>
       _AddTransactionScreenState();
@@ -17,13 +22,30 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amount = TextEditingController();
   final _note = TextEditingController();
-  TransactionType _type = TransactionType.expense;
+  late TransactionType _type;
   String? _categoryId;
   String? _accountId;
   DateTime _date = DateTime.now();
   bool _recurring = false;
   RecurrenceFrequency _frequency = RecurrenceFrequency.monthly;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _type = widget.initialType;
+  }
+
+  @override
+  void didUpdateWidget(covariant AddTransactionScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialType != widget.initialType) {
+      setState(() {
+        _type = widget.initialType;
+        _categoryId = null;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -62,8 +84,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
               note: _note.text,
             );
       }
-      ref.invalidate(accountsProvider);
-      ref.invalidate(transactionsProvider);
+      refreshFinance(ref);
       if (mounted) {
         ScaffoldMessenger.of(
           context,

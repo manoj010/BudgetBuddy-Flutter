@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/models/finance_models.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/reports/presentation/reports_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
@@ -16,7 +17,18 @@ final appRouter = GoRouter(
       branches: [
         _branch('/home', const DashboardScreen()),
         _branch('/transactions', const TransactionsScreen()),
-        _branch('/add', const AddTransactionScreen()),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/add',
+              builder: (context, state) => AddTransactionScreen(
+                initialType: _transactionTypeFromQuery(
+                  state.uri.queryParameters['type'],
+                ),
+              ),
+            ),
+          ],
+        ),
         _branch('/reports', const ReportsScreen()),
         _branch('/settings', const SettingsScreen()),
       ],
@@ -27,6 +39,12 @@ final appRouter = GoRouter(
 StatefulShellBranch _branch(String path, Widget screen) => StatefulShellBranch(
   routes: [GoRoute(path: path, builder: (context, state) => screen)],
 );
+
+TransactionType _transactionTypeFromQuery(String? value) => switch (value) {
+  'income' => TransactionType.income,
+  'savings' => TransactionType.savings,
+  _ => TransactionType.expense,
+};
 
 class AppShell extends StatelessWidget {
   const AppShell({required this.navigationShell, super.key});

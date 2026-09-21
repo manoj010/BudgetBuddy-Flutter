@@ -270,6 +270,54 @@ class FinanceRepository {
         ),
       };
 
+  Future<void> updateTransaction({
+    required String id,
+    required String categoryId,
+    required int amount,
+  }) async {
+    if (amount <= 0)
+      throw const FinanceFailure('Amount must be greater than zero.');
+    final row = await (db.select(
+      db.transactionsTable,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
+    if (row == null || row.deletedAt != null)
+      throw const FinanceFailure('Transaction not found.');
+    final account = await (db.select(
+      db.accounts,
+    )..where((a) => a.id.equals(row.accountId))).getSingleOrNull();
+    if (account == null) throw const FinanceFailure('Account not found.');
+    final oldDelta = row.type == TransactionType.income.value
+        ? row.amount
+        : -row.amount;
+    final newDelta = row.type == TransactionType.income.value
+        ? amount
+        : -amount;
+    final balanceDelta = newDelta - oldDelta;
+    if (!await allowNegative() && account.currentBalance + balanceDelta < 0) {
+      throw const FinanceFailure('Insufficient balance for this transaction.');
+    }
+    final now = DateTime.now();
+    await db.transaction(() async {
+      await (db.update(
+        db.transactionsTable,
+      )..where((t) => t.id.equals(id))).write(
+        TransactionsTableCompanion(
+          categoryId: Value(categoryId),
+          amount: Value(amount),
+          updatedAt: Value(now),
+        ),
+      );
+      await (db.update(
+        db.accounts,
+      )..where((a) => a.id.equals(account.id))).write(
+        AccountsCompanion(
+          currentBalance: Value(account.currentBalance + balanceDelta),
+          updatedAt: Value(now),
+        ),
+      );
+    });
+  }
+
   Future<void> deleteTransaction(String id) async {
     final row = await (db.select(
       db.transactionsTable,
@@ -562,7 +610,9 @@ class FinanceRepository {
     final value = await _setting('username');
     return value?.trim().isNotEmpty == true ? value!.trim() : 'there';
   }
-  Future<void> setUsername(String value) => _setSetting('username', value.trim());
+
+  Future<void> setUsername(String value) =>
+      _setSetting('username', value.trim());
 
   Future<void> setAllowNegative(bool value) =>
       _setSetting('allow_negative', value.toString());

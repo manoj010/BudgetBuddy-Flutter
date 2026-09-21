@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
@@ -8,16 +9,18 @@ import '../../../core/utils/money.dart';
 import '../../../shared/widgets/icon_for_name.dart';
 
 final dashboardMonthProvider = StateProvider<DateTime>((ref) => DateTime.now());
-final dashboardTotalsProvider = FutureProvider.autoDispose(
-  (ref) => ref
+final dashboardTotalsProvider = FutureProvider.autoDispose((ref) {
+  ref.watch(financeRefreshProvider);
+  return ref
       .watch(repositoryProvider)
-      .totalsForMonth(ref.watch(dashboardMonthProvider)),
-);
-final dashboardCategoriesProvider = FutureProvider.autoDispose(
-  (ref) => ref
+      .totalsForMonth(ref.watch(dashboardMonthProvider));
+});
+final dashboardCategoriesProvider = FutureProvider.autoDispose((ref) {
+  ref.watch(financeRefreshProvider);
+  return ref
       .watch(repositoryProvider)
-      .categoryTotals(ref.watch(dashboardMonthProvider)),
-);
+      .categoryTotals(ref.watch(dashboardMonthProvider));
+});
 final usernameProvider = FutureProvider.autoDispose(
   (ref) => ref.watch(repositoryProvider).username(),
 );
@@ -123,6 +126,7 @@ class DashboardScreen extends ConsumerWidget {
                         amount: value.income,
                         icon: Icons.arrow_downward,
                         color: Colors.green,
+                        onTap: () => context.go('/add?type=income'),
                       ),
                       const SizedBox(width: 12),
                       _SummaryCard(
@@ -130,6 +134,7 @@ class DashboardScreen extends ConsumerWidget {
                         amount: value.expenses,
                         icon: Icons.arrow_upward,
                         color: Theme.of(context).colorScheme.error,
+                        onTap: () => context.go('/add?type=expense'),
                       ),
                       const SizedBox(width: 12),
                       _SummaryCard(
@@ -137,6 +142,7 @@ class DashboardScreen extends ConsumerWidget {
                         amount: value.savings,
                         icon: Icons.savings_outlined,
                         color: Theme.of(context).colorScheme.tertiary,
+                        onTap: () => context.go('/add?type=savings'),
                       ),
                     ],
                   ),
@@ -241,7 +247,10 @@ class DashboardScreen extends ConsumerWidget {
                       'Recent transactions',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
-                    TextButton(onPressed: () {}, child: const Text('View all')),
+                    TextButton(
+                      onPressed: () => context.go('/transactions'),
+                      child: const Text('View all'),
+                    ),
                   ],
                 ),
                 if (recent.isEmpty)
@@ -352,33 +361,39 @@ class _SummaryCard extends StatelessWidget {
     required this.amount,
     required this.icon,
     required this.color,
+    required this.onTap,
   });
   final String label;
   final int amount;
   final IconData icon;
   final Color color;
+  final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(height: 10),
-              Text(label, style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 4),
-              FittedBox(
-                child: Text(
-                  formatMoney(amount),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: 18, color: color),
+                const SizedBox(height: 10),
+                Text(label, style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: 4),
+                FittedBox(
+                  child: Text(
+                    formatMoney(amount),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

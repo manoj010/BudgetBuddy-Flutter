@@ -264,7 +264,7 @@ class _AccountsSheetState extends ConsumerState<_AccountsSheet> {
                     type: 'cash',
                     openingBalance: parseMinorUnits(amount.text),
                   );
-              ref.invalidate(accountsProvider);
+              refreshFinance(ref);
               if (mounted) Navigator.pop(context);
             },
             child: const Text('Add account'),
@@ -299,7 +299,7 @@ class _AccountsSheetState extends ConsumerState<_AccountsSheet> {
     if (!confirmed) return;
     try {
       await ref.read(repositoryProvider).deleteAccount(id);
-      ref.invalidate(accountsProvider);
+      refreshFinance(ref);
       if (mounted) setState(() {});
     } on FinanceFailure catch (error) {
       if (mounted)

@@ -13,6 +13,8 @@ final repositoryProvider = Provider<FinanceRepository>(
   (ref) => FinanceRepository(ref.watch(databaseProvider)),
 );
 
+final financeRefreshProvider = StateProvider<int>((ref) => 0);
+
 final onboardingCompleteProvider = FutureProvider<bool>(
   (ref) => ref.watch(repositoryProvider).isOnboardingComplete(),
 );
@@ -27,7 +29,8 @@ final transactionsProvider =
       (ref) => ref.watch(repositoryProvider).transactions(),
     );
 
-void refreshFinance(Ref ref) {
+void refreshFinance(WidgetRef ref) {
+  ref.read(financeRefreshProvider.notifier).state++;
   ref.invalidate(accountsProvider);
   ref.invalidate(categoriesProvider);
   ref.invalidate(transactionsProvider);
