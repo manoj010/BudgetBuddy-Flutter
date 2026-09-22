@@ -18,6 +18,12 @@ final financeRefreshProvider = StateProvider<int>((ref) => 0);
 final onboardingCompleteProvider = FutureProvider<bool>(
   (ref) => ref.watch(repositoryProvider).isOnboardingComplete(),
 );
+final themeModeProvider = FutureProvider<String>(
+  (ref) => ref.watch(repositoryProvider).themeMode(),
+);
+final allowNegativeProvider = FutureProvider<bool>(
+  (ref) => ref.watch(repositoryProvider).allowNegative(),
+);
 final accountsProvider = FutureProvider.autoDispose<List<Account>>(
   (ref) => ref.watch(repositoryProvider).accounts(),
 );

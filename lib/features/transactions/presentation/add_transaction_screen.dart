@@ -122,7 +122,15 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     return SafeArea(
       child: CustomScrollView(
         slivers: [
-          const SliverAppBar.large(title: Text('Add transaction')),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              child: Text(
+                'Add transaction',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            ),
+          ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 36),
             sliver: SliverToBoxAdapter(

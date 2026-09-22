@@ -28,15 +28,25 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     return SafeArea(
       child: CustomScrollView(
         slivers: [
-          SliverAppBar.large(
-            title: const Text('Transactions'),
-            actions: [
-              IconButton(
-                onPressed: () => _showSearch(context),
-                icon: const Icon(Icons.search),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 12, 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    'Transactions',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  IconButton(
+                    onPressed: () => _showSearch(context),
+                    icon: const Icon(Icons.search),
+                    tooltip: 'Search transactions',
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-            ],
+            ),
           ),
           SliverToBoxAdapter(
             child: SizedBox(

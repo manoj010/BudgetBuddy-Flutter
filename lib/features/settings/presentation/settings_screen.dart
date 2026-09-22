@@ -1,3 +1,7 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,10 +20,20 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final accounts = ref.watch(accountsProvider);
     final goals = ref.watch(goalsProvider);
+    final themeMode = ref.watch(themeModeProvider).value ?? 'dark';
+    final allowNegative = ref.watch(allowNegativeProvider).value ?? false;
     return SafeArea(
       child: CustomScrollView(
         slivers: [
-          const SliverAppBar.large(title: Text('Settings')),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              child: Text(
+                'Settings',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            ),
+          ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
             sliver: SliverList(
@@ -90,15 +104,23 @@ class SettingsScreen extends ConsumerWidget {
                         subtitle: const Text(
                           'Permit spending beyond available balance',
                         ),
-                        value: false,
-                        onChanged: (value) => ref
-                            .read(repositoryProvider)
-                            .setAllowNegative(value),
+                        value: allowNegative,
+                        onChanged: (value) async {
+                          await ref
+                              .read(repositoryProvider)
+                              .setAllowNegative(value);
+                          ref.invalidate(allowNegativeProvider);
+                          refreshFinance(ref);
+                        },
                       ),
-                      const ListTile(
+                      ListTile(
                         leading: Icon(Icons.palette_outlined),
                         title: Text('Theme'),
-                        subtitle: Text('Follows system setting'),
+                        subtitle: Text(
+                          themeMode == 'light' ? 'Light theme' : 'Dark theme',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => _showThemePicker(context, ref),
                       ),
                     ],
                   ),
@@ -112,24 +134,14 @@ class SettingsScreen extends ConsumerWidget {
                       ListTile(
                         leading: const Icon(Icons.ios_share_outlined),
                         title: const Text('Export data'),
-                        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Export interface is ready for the next release.',
-                            ),
-                          ),
-                        ),
+                        subtitle: const Text('Save your data as an Excel file'),
+                        onTap: () => _exportData(context, ref),
                       ),
                       ListTile(
                         leading: const Icon(Icons.backup_outlined),
                         title: const Text('Backup and restore'),
-                        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Your data is stored offline on this device.',
-                            ),
-                          ),
-                        ),
+                        subtitle: const Text('Restore data from an Excel file'),
+                        onTap: () => _restoreData(context, ref),
                       ),
                     ],
                   ),
@@ -178,6 +190,117 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
     controller.dispose();
+  }
+
+  Future<void> _showThemePicker(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(themeModeProvider).value ?? 'dark';
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Choose theme'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('Dark'),
+              trailing: current == 'dark'
+                  ? const Icon(Icons.check)
+                  : const SizedBox.shrink(),
+              onTap: () => Navigator.pop(dialogContext, 'dark'),
+            ),
+            ListTile(
+              title: const Text('Light'),
+              trailing: current == 'light'
+                  ? const Icon(Icons.check)
+                  : const SizedBox.shrink(),
+              onTap: () => Navigator.pop(dialogContext, 'light'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return;
+    await ref.read(repositoryProvider).setThemeMode(selected);
+    ref.invalidate(themeModeProvider);
+  }
+
+  Future<void> _exportData(BuildContext context, WidgetRef ref) async {
+    try {
+      final bytes = await ref.read(repositoryProvider).exportExcel();
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Budget Buddy Excel export',
+        fileName: 'budget_buddy_export.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+        bytes: Uint8List.fromList(bytes),
+      );
+      if (!context.mounted || path == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Excel export saved successfully')),
+      );
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $error')));
+    }
+  }
+
+  Future<void> _restoreData(BuildContext context, WidgetRef ref) async {
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Choose Budget Buddy backup',
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty || !context.mounted) return;
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Restore backup?'),
+            content: const Text(
+              'This will replace all current Budget Buddy data with the selected backup.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Restore'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+    try {
+      final file = result.files.single;
+      final bytes = file.path != null
+          ? await File(file.path!).readAsBytes()
+          : file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        throw const FinanceFailure('Could not read the selected Excel file.');
+      }
+      await ref.read(repositoryProvider).restoreExcel(bytes);
+      refreshFinance(ref);
+      ref.invalidate(goalsProvider);
+      ref.invalidate(usernameProvider);
+      ref.invalidate(themeModeProvider);
+      ref.invalidate(allowNegativeProvider);
+      ref.invalidate(onboardingCompleteProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Backup restored successfully')),
+      );
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Restore failed: $error')));
+    }
   }
 
   Future<void> _showAccounts(BuildContext context, WidgetRef ref) =>

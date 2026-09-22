@@ -24,7 +24,15 @@ class ReportsScreen extends ConsumerWidget {
     return SafeArea(
       child: CustomScrollView(
         slivers: [
-          const SliverAppBar.large(title: Text('Reports')),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              child: Text(
+                'Reports',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            ),
+          ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
             sliver: SliverList(

@@ -12,23 +12,36 @@ class BudgetBuddyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final onboarding = ref.watch(onboardingCompleteProvider);
+    final themeSetting = ref.watch(themeModeProvider);
+    final themeMode = themeSetting.value == 'light'
+        ? ThemeMode.light
+        : ThemeMode.dark;
     return onboarding.when(
-      loading: () =>
-          MaterialApp(theme: AppTheme.light, home: const _SplashScreen()),
-      error: (error, stack) =>
-          MaterialApp(theme: AppTheme.light, home: const _ErrorScreen()),
+      loading: () => MaterialApp(
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: themeMode,
+        home: const _SplashScreen(),
+      ),
+      error: (error, stack) => MaterialApp(
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: themeMode,
+        home: const _ErrorScreen(),
+      ),
       data: (complete) => complete
           ? MaterialApp.router(
               title: 'BudgetBuddy',
               debugShowCheckedModeBanner: false,
               theme: AppTheme.light,
               darkTheme: AppTheme.dark,
-              themeMode: ThemeMode.system,
+              themeMode: themeMode,
               routerConfig: appRouter,
             )
           : MaterialApp(
               theme: AppTheme.light,
               darkTheme: AppTheme.dark,
+              themeMode: themeMode,
               home: const OnboardingScreen(),
             ),
     );
